@@ -11,6 +11,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 
+import java.util.Base64;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -20,13 +22,13 @@ public class SurveyResourceIT {
 
     private final String GENERIC_QUESTION_URL = "/surveys/Survey1/questions/";
 
-
     @Autowired
     private TestRestTemplate template;
     @Test
     void retrieveSpecificSurveyQuestion_basicScenario() throws JSONException {
-        ResponseEntity<String> responseEntity = template.getForEntity(SPECIFIC_QUESTION_URL, String.class);
-
+        HttpHeaders httpHeaders = createHttpHeaders();
+        HttpEntity<String> httpEntity = new HttpEntity<>(null,httpHeaders);
+        ResponseEntity<String> responseEntity = template.exchange(SPECIFIC_QUESTION_URL, HttpMethod.GET, httpEntity, String.class);
         String expectedResponse = "{\"id\":\"Question1\",\"description\":\"Most Popular Cloud Platform Today\",\"options\":[\"AWS\",\"Azure\",\"Google Cloud\",\"Oracle Cloud\"],\"correctAnswer\":\"AWS\"}";
 
         assertTrue(responseEntity.getStatusCode().is2xxSuccessful());
@@ -36,8 +38,9 @@ public class SurveyResourceIT {
 
     @Test
     void retrieveAllSurveyQuestions_basicScenario() throws JSONException {
-        ResponseEntity<String> responseEntity = template.getForEntity(GENERIC_QUESTION_URL, String.class);
-
+        HttpHeaders httpHeaders = createHttpHeaders();
+        HttpEntity<String> httpEntity = new HttpEntity<>(null,httpHeaders);
+        ResponseEntity<String> responseEntity = template.exchange(GENERIC_QUESTION_URL, HttpMethod.GET, httpEntity, String.class);
         String expectedResponse = "[{\"id\":\"Question1\",\"description\":\"Most Popular Cloud Platform Today\",\"options\":[\"AWS\",\"Azure\",\"Google Cloud\",\"Oracle Cloud\"],\"correctAnswer\":\"AWS\"},{\"id\":\"Question2\",\"description\":\"Fastest Growing Cloud Platform\",\"options\":[\"AWS\",\"Azure\",\"Google Cloud\",\"Oracle Cloud\"],\"correctAnswer\":\"Google Cloud\"},{\"id\":\"Question3\",\"description\":\"Most Popular DevOps Tool\",\"options\":[\"Kubernetes\",\"Docker\",\"Terraform\",\"Azure DevOps\"],\"correctAnswer\":\"Kubernetes\"}]";
         System.out.println(responseEntity.getBody());
 
@@ -57,20 +60,30 @@ public class SurveyResourceIT {
                 "  \"correctAnswer\": \"Go\"\n" +
                 "}";
 
-        HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.add("Content-Type","application/json");
-
+        HttpHeaders httpHeaders = createHttpHeaders();
         HttpEntity<String> httpEntity = new HttpEntity<>(requestBody,httpHeaders);
-
         ResponseEntity<String> responseEntity = template.exchange(GENERIC_QUESTION_URL, HttpMethod.POST, httpEntity, String.class);
-
-        System.out.println(responseEntity.getBody());
-        System.out.println(responseEntity.getHeaders());
 
         assertTrue(responseEntity.getStatusCode().is2xxSuccessful());
 
         String locationHeader = responseEntity.getHeaders().get("Location").get(0);
         assertTrue(locationHeader.contains("/surveys/Survey1/questions"));
-        template.delete(locationHeader);
+
+
+        ResponseEntity<String> responseEntityDelete = template.exchange(locationHeader, HttpMethod.DELETE, httpEntity, String.class);
+        assertTrue(responseEntityDelete.getStatusCode().is2xxSuccessful());
+    }
+
+    private HttpHeaders createHttpHeaders() {
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.add("Content-Type","application/json");
+        httpHeaders.add("Authorization","Basic "+performBasicAuthEncoding("fabribraguev","password"));
+        return httpHeaders;
+    }
+
+    String performBasicAuthEncoding(String user, String password){
+        String combined= user + ":" + password;
+        byte[] encodedBytes = Base64.getEncoder().encode(combined.getBytes());
+        return new String(encodedBytes);
     }
 }
